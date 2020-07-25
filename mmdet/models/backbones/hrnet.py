@@ -1,11 +1,12 @@
+import logging
+
 import torch.nn as nn
-from mmcv.cnn import (build_conv_layer, build_norm_layer, constant_init,
-                      kaiming_init)
+from mmcv.cnn import constant_init, kaiming_init
 from mmcv.runner import load_checkpoint
 from torch.nn.modules.batchnorm import _BatchNorm
 
-from mmdet.utils import get_root_logger
-from ..builder import BACKBONES
+from ..registry import BACKBONES
+from ..utils import build_norm_layer, build_conv_layer
 from .resnet import BasicBlock, Bottleneck
 
 
@@ -43,18 +44,18 @@ class HRModule(nn.Module):
     def _check_branches(self, num_branches, num_blocks, in_channels,
                         num_channels):
         if num_branches != len(num_blocks):
-            error_msg = f'NUM_BRANCHES({num_branches}) ' \
-                f'!= NUM_BLOCKS({len(num_blocks)})'
+            error_msg = 'NUM_BRANCHES({}) <> NUM_BLOCKS({})'.format(
+                num_branches, len(num_blocks))
             raise ValueError(error_msg)
 
         if num_branches != len(num_channels):
-            error_msg = f'NUM_BRANCHES({num_branches}) ' \
-                f'!= NUM_CHANNELS({len(num_channels)})'
+            error_msg = 'NUM_BRANCHES({}) <> NUM_CHANNELS({})'.format(
+                num_branches, len(num_channels))
             raise ValueError(error_msg)
 
         if num_branches != len(in_channels):
-            error_msg = f'NUM_BRANCHES({num_branches}) ' \
-                f'!= NUM_INCHANNELS({len(in_channels)})'
+            error_msg = 'NUM_BRANCHES({}) <> NUM_INCHANNELS({})'.format(
+                num_branches, len(in_channels))
             raise ValueError(error_msg)
 
     def _make_one_branch(self,
@@ -191,7 +192,7 @@ class HRModule(nn.Module):
         return x_fuse
 
 
-@BACKBONES.register_module()
+@BACKBONES.register_module
 class HRNet(nn.Module):
     """HRNet backbone.
 
@@ -200,7 +201,6 @@ class HRNet(nn.Module):
 
     Args:
         extra (dict): detailed configuration for each stage of HRNet.
-        in_channels (int): Number of input image channels. Default: 3.
         conv_cfg (dict): dictionary to construct and config conv layer.
         norm_cfg (dict): dictionary to construct and config norm layer.
         norm_eval (bool): Whether to set norm layers to eval mode, namely,
@@ -210,52 +210,12 @@ class HRNet(nn.Module):
             memory while slowing down the training speed.
         zero_init_residual (bool): whether to use zero init for last norm layer
             in resblocks to let them behave as identity.
-
-    Example:
-        >>> from mmdet.models import HRNet
-        >>> import torch
-        >>> extra = dict(
-        >>>     stage1=dict(
-        >>>         num_modules=1,
-        >>>         num_branches=1,
-        >>>         block='BOTTLENECK',
-        >>>         num_blocks=(4, ),
-        >>>         num_channels=(64, )),
-        >>>     stage2=dict(
-        >>>         num_modules=1,
-        >>>         num_branches=2,
-        >>>         block='BASIC',
-        >>>         num_blocks=(4, 4),
-        >>>         num_channels=(32, 64)),
-        >>>     stage3=dict(
-        >>>         num_modules=4,
-        >>>         num_branches=3,
-        >>>         block='BASIC',
-        >>>         num_blocks=(4, 4, 4),
-        >>>         num_channels=(32, 64, 128)),
-        >>>     stage4=dict(
-        >>>         num_modules=3,
-        >>>         num_branches=4,
-        >>>         block='BASIC',
-        >>>         num_blocks=(4, 4, 4, 4),
-        >>>         num_channels=(32, 64, 128, 256)))
-        >>> self = HRNet(extra, in_channels=1)
-        >>> self.eval()
-        >>> inputs = torch.rand(1, 1, 32, 32)
-        >>> level_outputs = self.forward(inputs)
-        >>> for level_out in level_outputs:
-        ...     print(tuple(level_out.shape))
-        (1, 32, 8, 8)
-        (1, 64, 4, 4)
-        (1, 128, 2, 2)
-        (1, 256, 1, 1)
     """
 
     blocks_dict = {'BASIC': BasicBlock, 'BOTTLENECK': Bottleneck}
 
     def __init__(self,
                  extra,
-                 in_channels=3,
                  conv_cfg=None,
                  norm_cfg=dict(type='BN'),
                  norm_eval=True,
@@ -275,7 +235,7 @@ class HRNet(nn.Module):
 
         self.conv1 = build_conv_layer(
             self.conv_cfg,
-            in_channels,
+            3,
             64,
             kernel_size=3,
             stride=2,
@@ -461,7 +421,7 @@ class HRNet(nn.Module):
 
     def init_weights(self, pretrained=None):
         if isinstance(pretrained, str):
-            logger = get_root_logger()
+            logger = logging.getLogger()
             load_checkpoint(self, pretrained, strict=False, logger=logger)
         elif pretrained is None:
             for m in self.modules():

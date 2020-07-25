@@ -1,191 +1,319 @@
 import torch.nn as nn
-from mmcv.cnn import ConvModule
 
-from ..builder import BACKBONES
-from ..utils import ResLayer
-from .resnet import BasicBlock
+from ..registry import BACKBONES
+import pdb
 
 
-class HourglassModule(nn.Module):
-    """Hourglass Module for HourglassNet backbone.
+# @BACKBONES.register_module
+# class HourglassNet(nn.Module):
 
-    Generate module recursively and use BasicBlock as the base unit.
+#     def __init__(self, arg1, arg2):
+#         self.arg1 = arg1
+#         self.arg2 = arg2
 
-    Args:
-        depth (int): Depth of current HourglassModule.
-        stage_channels (list[int]): Feature channels of sub-modules in current
-            and follow-up HourglassModule.
-        stage_blocks (list[int]): Number of sub-modules stacked in current and
-            follow-up HourglassModule.
-        norm_cfg (dict): Dictionary to construct and config norm layer.
-    """
+#     def forward(x):  # should return a tuple
+#         return x
 
-    def __init__(self,
-                 depth,
-                 stage_channels,
-                 stage_blocks,
-                 norm_cfg=dict(type='BN', requires_grad=True)):
-        super(HourglassModule, self).__init__()
+#     def init_weights(self, pretrained=None):
+#         pass
 
-        self.depth = depth
 
-        cur_block = stage_blocks[0]
-        next_block = stage_blocks[1]
+# ------------------------------------------------------------------------------
+# This code is base on
+# CornerNet (https://github.com/princeton-vl/CornerNet)
+# Copyright (c) 2018, University of Michigan
+# Licensed under the BSD 3-Clause License
+# ------------------------------------------------------------------------------
 
-        cur_channel = stage_channels[0]
-        next_channel = stage_channels[1]
+import numpy as np
+import torch
+# import torch.nn as nn
 
-        self.up1 = ResLayer(
-            BasicBlock, cur_channel, cur_channel, cur_block, norm_cfg=norm_cfg)
+class convolution(nn.Module):
+    def __init__(self, k, inp_dim, out_dim, stride=1, with_bn=True):
+        super(convolution, self).__init__()
 
-        self.low1 = ResLayer(
-            BasicBlock,
-            cur_channel,
-            next_channel,
-            cur_block,
-            stride=2,
-            norm_cfg=norm_cfg)
-
-        if self.depth > 1:
-            self.low2 = HourglassModule(depth - 1, stage_channels[1:],
-                                        stage_blocks[1:])
-        else:
-            self.low2 = ResLayer(
-                BasicBlock,
-                next_channel,
-                next_channel,
-                next_block,
-                norm_cfg=norm_cfg)
-
-        self.low3 = ResLayer(
-            BasicBlock,
-            next_channel,
-            cur_channel,
-            cur_block,
-            norm_cfg=norm_cfg,
-            downsample_first=False)
-
-        self.up2 = nn.Upsample(scale_factor=2)
+        pad = (k - 1) // 2
+        self.conv = nn.Conv2d(inp_dim, out_dim, (k, k), padding=(pad, pad), stride=(stride, stride), bias=not with_bn)
+        self.bn   = nn.BatchNorm2d(out_dim) if with_bn else nn.Sequential()
+        self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x):
-        up1 = self.up1(x)
-        low1 = self.low1(x)
-        low2 = self.low2(low1)
-        low3 = self.low3(low2)
-        up2 = self.up2(low3)
+        conv = self.conv(x)
+        bn   = self.bn(conv)
+        relu = self.relu(bn)
+        return relu
+
+class fully_connected(nn.Module):
+    def __init__(self, inp_dim, out_dim, with_bn=True):
+        super(fully_connected, self).__init__()
+        self.with_bn = with_bn
+
+        self.linear = nn.Linear(inp_dim, out_dim)
+        if self.with_bn:
+            self.bn = nn.BatchNorm1d(out_dim)
+        self.relu   = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        linear = self.linear(x)
+        bn     = self.bn(linear) if self.with_bn else linear
+        relu   = self.relu(bn)
+        return relu
+
+class residual(nn.Module):
+    def __init__(self, k, inp_dim, out_dim, stride=1, with_bn=True):
+        super(residual, self).__init__()
+
+        self.conv1 = nn.Conv2d(inp_dim, out_dim, (3, 3), padding=(1, 1), stride=(stride, stride), bias=False)
+        self.bn1   = nn.BatchNorm2d(out_dim)
+        self.relu1 = nn.ReLU(inplace=True)
+
+        self.conv2 = nn.Conv2d(out_dim, out_dim, (3, 3), padding=(1, 1), bias=False)
+        self.bn2   = nn.BatchNorm2d(out_dim)
+
+        self.skip  = nn.Sequential(
+            nn.Conv2d(inp_dim, out_dim, (1, 1), stride=(stride, stride), bias=False),
+            nn.BatchNorm2d(out_dim)
+        ) if stride != 1 or inp_dim != out_dim else nn.Sequential()
+        self.relu  = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        conv1 = self.conv1(x)
+        bn1   = self.bn1(conv1)
+        relu1 = self.relu1(bn1)
+
+        conv2 = self.conv2(relu1)
+        bn2   = self.bn2(conv2)
+
+        skip  = self.skip(x)
+        return self.relu(bn2 + skip)
+
+def make_layer(k, inp_dim, out_dim, modules, layer=convolution, **kwargs):
+    layers = [layer(k, inp_dim, out_dim, **kwargs)]
+    for _ in range(1, modules):
+        layers.append(layer(k, out_dim, out_dim, **kwargs))
+    return nn.Sequential(*layers)
+
+def make_layer_revr(k, inp_dim, out_dim, modules, layer=convolution, **kwargs):
+    layers = []
+    for _ in range(modules - 1):
+        layers.append(layer(k, inp_dim, inp_dim, **kwargs))
+    layers.append(layer(k, inp_dim, out_dim, **kwargs))
+    return nn.Sequential(*layers)
+
+class MergeUp(nn.Module):
+    def forward(self, up1, up2):
         return up1 + up2
 
+def make_merge_layer(dim):
+    return MergeUp()
 
-@BACKBONES.register_module()
-class HourglassNet(nn.Module):
-    """HourglassNet backbone.
+# def make_pool_layer(dim):
+#     return nn.MaxPool2d(kernel_size=2, stride=2)
 
-    Stacked Hourglass Networks for Human Pose Estimation.
-    More details can be found in the `paper
-    <https://arxiv.org/abs/1603.06937>`_ .
+def make_pool_layer(dim):
+    return nn.Sequential()
 
-    Args:
-        downsample_times (int): Downsample times in a HourglassModule.
-        num_stacks (int): Number of HourglassModule modules stacked,
-            1 for Hourglass-52, 2 for Hourglass-104.
-        stage_channels (list[int]): Feature channel of each sub-module in a
-            HourglassModule.
-        stage_blocks (list[int]): Number of sub-modules stacked in a
-            HourglassModule.
-        feat_channel (int): Feature channel of conv after a HourglassModule.
-        norm_cfg (dict): Dictionary to construct and config norm layer.
+def make_unpool_layer(dim):
+    return nn.Upsample(scale_factor=2)
 
-    Example:
-        >>> from mmdet.models import HourglassNet
-        >>> import torch
-        >>> self = HourglassNet()
-        >>> self.eval()
-        >>> inputs = torch.rand(1, 3, 511, 511)
-        >>> level_outputs = self.forward(inputs)
-        >>> for level_output in level_outputs:
-        ...     print(tuple(level_output.shape))
-        (1, 256, 128, 128)
-        (1, 256, 128, 128)
-    """
+def make_kp_layer(cnv_dim, curr_dim, out_dim):
+    return nn.Sequential(
+        convolution(3, cnv_dim, curr_dim, with_bn=False),
+        nn.Conv2d(curr_dim, out_dim, (1, 1))
+    )
 
-    def __init__(self,
-                 downsample_times=5,
-                 num_stacks=2,
-                 stage_channels=(256, 256, 384, 384, 384, 512),
-                 stage_blocks=(2, 2, 2, 2, 2, 4),
-                 feat_channel=256,
-                 norm_cfg=dict(type='BN', requires_grad=True)):
-        super(HourglassNet, self).__init__()
+def make_inter_layer(dim):
+    return residual(3, dim, dim)
 
-        self.num_stacks = num_stacks
-        assert self.num_stacks >= 1
-        assert len(stage_channels) == len(stage_blocks)
-        assert len(stage_channels) > downsample_times
+def make_cnv_layer(inp_dim, out_dim):
+    return convolution(3, inp_dim, out_dim)
 
-        cur_channel = stage_channels[0]
+class kp_module(nn.Module):
+    def __init__(
+        self, n, dims, modules, layer=residual,
+        make_up_layer=make_layer, make_low_layer=make_layer,
+        make_hg_layer=make_layer, make_hg_layer_revr=make_layer_revr,
+        make_pool_layer=make_pool_layer, make_unpool_layer=make_unpool_layer,
+        make_merge_layer=make_merge_layer, **kwargs
+    ):
+        super(kp_module, self).__init__()
 
-        self.stem = nn.Sequential(
-            ConvModule(3, 128, 7, padding=3, stride=2, norm_cfg=norm_cfg),
-            ResLayer(BasicBlock, 128, 256, 1, stride=2, norm_cfg=norm_cfg))
+        self.n   = n
 
-        self.hourglass_modules = nn.ModuleList([
-            HourglassModule(downsample_times, stage_channels, stage_blocks)
-            for _ in range(num_stacks)
+        curr_mod = modules[0]
+        next_mod = modules[1]
+
+        curr_dim = dims[0]
+        next_dim = dims[1]
+
+        self.up1  = make_up_layer(
+            3, curr_dim, curr_dim, curr_mod,
+            layer=layer, **kwargs
+        )
+        self.max1 = make_pool_layer(curr_dim)
+        self.low1 = make_hg_layer(
+            3, curr_dim, next_dim, curr_mod,
+            layer=layer, **kwargs
+        )
+        self.low2 = kp_module(
+            n - 1, dims[1:], modules[1:], layer=layer,
+            make_up_layer=make_up_layer,
+            make_low_layer=make_low_layer,
+            make_hg_layer=make_hg_layer,
+            make_hg_layer_revr=make_hg_layer_revr,
+            make_pool_layer=make_pool_layer,
+            make_unpool_layer=make_unpool_layer,
+            make_merge_layer=make_merge_layer,
+            **kwargs
+        ) if self.n > 1 else \
+        make_low_layer(
+            3, next_dim, next_dim, next_mod,
+            layer=layer, **kwargs
+        )
+        self.low3 = make_hg_layer_revr(
+            3, next_dim, curr_dim, curr_mod,
+            layer=layer, **kwargs
+        )
+        self.up2  = make_unpool_layer(curr_dim)
+
+        self.merge = make_merge_layer(curr_dim)
+
+    def forward(self, x):
+        up1  = self.up1(x)
+        max1 = self.max1(x)
+        low1 = self.low1(max1)
+        low2 = self.low2(low1)
+        low3 = self.low3(low2)
+        up2  = self.up2(low3)
+        # pdb.set_trace()
+        return self.merge(up1, up2)
+
+class exkp(nn.Module):
+    def __init__(
+        self, n, nstack, dims, modules, heads, pre=None, cnv_dim=256,
+        make_tl_layer=None, make_br_layer=None,
+        make_cnv_layer=make_cnv_layer, make_heat_layer=make_kp_layer,
+        make_tag_layer=make_kp_layer, make_regr_layer=make_kp_layer,
+        make_up_layer=make_layer, make_low_layer=make_layer,
+        make_hg_layer=make_layer, make_hg_layer_revr=make_layer_revr,
+        make_pool_layer=make_pool_layer, make_unpool_layer=make_unpool_layer,
+        make_merge_layer=make_merge_layer, make_inter_layer=make_inter_layer,
+        kp_layer=residual
+    ):
+        super(exkp, self).__init__()
+
+        self.nstack    = nstack
+        self.heads     = heads
+
+        curr_dim = dims[0]
+
+        self.pre = nn.Sequential(
+            convolution(7, 3, 128, stride=2),
+            residual(3, 128, 256, stride=2)
+        ) if pre is None else pre
+
+        self.kps  = nn.ModuleList([
+            kp_module(
+                n, dims, modules, layer=kp_layer,
+                make_up_layer=make_up_layer,
+                make_low_layer=make_low_layer,
+                make_hg_layer=make_hg_layer,
+                make_hg_layer_revr=make_hg_layer_revr,
+                make_pool_layer=make_pool_layer,
+                make_unpool_layer=make_unpool_layer,
+                make_merge_layer=make_merge_layer
+            ) for _ in range(nstack)
+        ])
+        self.cnvs = nn.ModuleList([
+            make_cnv_layer(curr_dim, cnv_dim) for _ in range(nstack)
         ])
 
-        self.inters = ResLayer(
-            BasicBlock,
-            cur_channel,
-            cur_channel,
-            num_stacks - 1,
-            norm_cfg=norm_cfg)
-
-        self.conv1x1s = nn.ModuleList([
-            ConvModule(
-                cur_channel, cur_channel, 1, norm_cfg=norm_cfg, act_cfg=None)
-            for _ in range(num_stacks - 1)
+        self.inters = nn.ModuleList([
+            make_inter_layer(curr_dim) for _ in range(nstack - 1)
         ])
 
-        self.out_convs = nn.ModuleList([
-            ConvModule(
-                cur_channel, feat_channel, 3, padding=1, norm_cfg=norm_cfg)
-            for _ in range(num_stacks)
+        self.inters_ = nn.ModuleList([
+            nn.Sequential(
+                nn.Conv2d(curr_dim, curr_dim, (1, 1), bias=False),
+                nn.BatchNorm2d(curr_dim)
+            ) for _ in range(nstack - 1)
+        ])
+        self.cnvs_   = nn.ModuleList([
+            nn.Sequential(
+                nn.Conv2d(cnv_dim, curr_dim, (1, 1), bias=False),
+                nn.BatchNorm2d(curr_dim)
+            ) for _ in range(nstack - 1)
         ])
 
-        self.remap_convs = nn.ModuleList([
-            ConvModule(
-                feat_channel, cur_channel, 1, norm_cfg=norm_cfg, act_cfg=None)
-            for _ in range(num_stacks - 1)
-        ])
+        ## keypoint heatmaps
+        for head in heads.keys():
+            if 'hm' in head:
+                module =  nn.ModuleList([
+                    make_heat_layer(
+                        cnv_dim, curr_dim, heads[head]) for _ in range(nstack)
+                ])
+                self.__setattr__(head, module)
+                for heat in self.__getattr__(head):
+                    heat[-1].bias.data.fill_(-2.19)
+            else:
+                module = nn.ModuleList([
+                    make_regr_layer(
+                        cnv_dim, curr_dim, heads[head]) for _ in range(nstack)
+                ])
+                self.__setattr__(head, module)
+
 
         self.relu = nn.ReLU(inplace=True)
 
+    def forward(self, image):
+        # print('image shape', image.shape)
+        inter = self.pre(image)
+        outs  = []
+
+        for ind in range(self.nstack):
+            kp_, cnv_  = self.kps[ind], self.cnvs[ind]
+            kp  = kp_(inter)
+            cnv = cnv_(kp)
+
+            out = {}
+            for head in self.heads:
+                layer = self.__getattr__(head)[ind]
+                y = layer(cnv)
+                out[head] = y
+
+            outs.append(out)
+            if ind < self.nstack - 1:
+                inter = self.inters_[ind](inter) + self.cnvs_[ind](cnv)
+                inter = self.relu(inter)
+                inter = self.inters[ind](inter)
+        return outs
+
+
+def make_hg_layer(kernel, dim0, dim1, mod, layer=convolution, **kwargs):
+    layers  = [layer(kernel, dim0, dim1, stride=2)]
+    layers += [layer(kernel, dim1, dim1) for _ in range(mod - 1)]
+    return nn.Sequential(*layers)
+
+@BACKBONES.register_module
+class HourglassNet(exkp):
+    def __init__(self, heads, num_stacks=1):
+        n       = 5
+        dims    = [256, 256, 384, 384, 384, 512]
+        modules = [2, 2, 2, 2, 2, 4]
+
+        super(HourglassNet, self).__init__(
+            n, num_stacks, dims, modules, heads,
+            make_tl_layer=None,
+            make_br_layer=None,
+            make_pool_layer=make_pool_layer,
+            make_hg_layer=make_hg_layer,
+            kp_layer=residual, cnv_dim=256
+        )
+
     def init_weights(self, pretrained=None):
-        """
-        We do nothing in this function because all modules we used (ConvModule,
-        BasicBlock and etc.) have default initialization, and currently
-        we don't provide pretrained model of HourglassNet.
-        Detector's __init__() will call backbone's init_weights() with
-        pretrained as input, so we keep this function.
-        """
-        pass
+        print('initializing weights')
 
-    def forward(self, x):
-        inter_feat = self.stem(x)
-        out_feats = []
-
-        for ind in range(self.num_stacks):
-            single_hourglass = self.hourglass_modules[ind]
-            out_conv = self.out_convs[ind]
-
-            hourglass_feat = single_hourglass(inter_feat)
-            out_feat = out_conv(hourglass_feat)
-            out_feats.append(out_feat)
-
-            if ind < self.num_stacks - 1:
-                inter_feat = self.conv1x1s[ind](
-                    inter_feat) + self.remap_convs[ind](
-                        out_feat)
-                inter_feat = self.inters[ind](self.relu(inter_feat))
-
-        return out_feats
+# def get_large_hourglass_net(num_layers, heads, head_conv):
+#   model = HourglassNet(heads, 2)
+#   return model

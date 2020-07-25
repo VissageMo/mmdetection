@@ -82,20 +82,12 @@ def coco_classes():
     ]
 
 
-def cityscapes_classes():
-    return [
-        'person', 'rider', 'car', 'truck', 'bus', 'train', 'motorcycle',
-        'bicycle'
-    ]
-
-
 dataset_aliases = {
     'voc': ['voc', 'pascal_voc', 'voc07', 'voc12'],
     'imagenet_det': ['det', 'imagenet_det', 'ilsvrc_det'],
     'imagenet_vid': ['vid', 'imagenet_vid', 'ilsvrc_vid'],
     'coco': ['coco', 'mscoco', 'ms_coco'],
-    'wider_face': ['WIDERFaceDataset', 'wider_face', 'WDIERFace'],
-    'cityscapes': ['cityscapes']
+    'wider_face': ['WIDERFaceDataset', 'wider_face', 'WDIERFace']
 }
 
 
@@ -110,7 +102,7 @@ def get_classes(dataset):
         if dataset in alias2name:
             labels = eval(alias2name[dataset] + '_classes()')
         else:
-            raise ValueError(f'Unrecognized dataset: {dataset}')
+            raise ValueError('Unrecognized dataset: {}'.format(dataset))
     else:
-        raise TypeError(f'dataset must a str, but got {type(dataset)}')
+        raise TypeError('dataset must a str, but got {}'.format(type(dataset)))
     return labels

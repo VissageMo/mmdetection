@@ -1,11 +1,9 @@
-from .bfp import BFP
 from .fpn import FPN
-from .fpn_carafe import FPN_CARAFE
+from .bfp import BFP
 from .hrfpn import HRFPN
-from .nas_fpn import NASFPN
-from .nasfcos_fpn import NASFCOS_FPN
-from .pafpn import PAFPN
+from .dlafpn import DLAFPN
+from .resnetfpn import ResNetFPN
+from .matrixfpn import MatrixFPN
+from .srfpn import SRFPN
 
-__all__ = [
-    'FPN', 'BFP', 'HRFPN', 'NASFPN', 'FPN_CARAFE', 'PAFPN', 'NASFCOS_FPN'
-]
+__all__ = ['FPN', 'BFP', 'HRFPN', 'DLAFPN', 'ResNetFPN', 'MatrixFPN', 'SRFPN']

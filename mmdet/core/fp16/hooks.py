@@ -1,11 +1,10 @@
 import copy
-
 import torch
 import torch.nn as nn
 from mmcv.runner import OptimizerHook
 
-from ..utils.dist_utils import allreduce_grads
 from .utils import cast_tensor_type
+from ..utils.dist_utils import allreduce_grads
 
 
 class Fp16OptimizerHook(OptimizerHook):
@@ -97,9 +96,8 @@ def wrap_fp16_model(model):
 def patch_norm_fp32(module):
     if isinstance(module, (nn.modules.batchnorm._BatchNorm, nn.GroupNorm)):
         module.float()
-        if isinstance(module, nn.GroupNorm) or torch.__version__ < '1.3':
-            module.forward = patch_forward_method(module.forward, torch.half,
-                                                  torch.float)
+        module.forward = patch_forward_method(module.forward, torch.half,
+                                              torch.float)
     for child in module.children():
         patch_norm_fp32(child)
     return module
