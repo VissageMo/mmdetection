@@ -1,5 +1,5 @@
 from .context_block import ContextBlock
-from .conv_ws import ConvWS2d, conv_ws_2d
+# from .conv_ws import ConvWS2d, conv_ws_2d
 from .corner_pool import CornerPool
 from .dcn import (DeformConv, DeformConvPack, DeformRoIPooling,
                   DeformRoIPoolingPack, ModulatedDeformConv,

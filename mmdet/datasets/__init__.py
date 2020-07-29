@@ -14,6 +14,7 @@ from .xml_style import XMLDataset
 from .vis import VISDataset
 from .vhr import VHRDataset
 from .rsod import RSODDataset
+from .sim311 import Sim311Dataset
 
 __all__ = [
     'CustomDataset', 'XMLDataset', 'CocoDataset', 'DeepFashionDataset',
@@ -24,5 +25,5 @@ __all__ = [
     'ConcatDataset', 'RepeatDataset', 'ClassBalancedDataset',
     'WIDERFaceDataset', 'DATASETS', 'PIPELINES', 'build_dataset',
 
-    'VHRDataset', 'RSODDataset', 'VISDataset'
+    'VHRDataset', 'RSODDataset', 'VISDataset', 'Sim311Dataset'
 ]

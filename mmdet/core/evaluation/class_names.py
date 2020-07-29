@@ -88,6 +88,12 @@ def cityscapes_classes():
         'bicycle'
     ]
 
+def sim311_classes():
+    return [
+        'ljjj', 'nzxj', 'zjgb', 'xcxj', 'qxz', 'uxh', 'qdp', 'fzc', 'jyz', 
+        'uxgj', 'plastic', 'jyz_ps', 'ld', 'fzc_sh', 'lszc', 'nest', 'fzc_xs'
+    ]
+
 
 dataset_aliases = {
     'voc': ['voc', 'pascal_voc', 'voc07', 'voc12'],
@@ -95,7 +101,8 @@ dataset_aliases = {
     'imagenet_vid': ['vid', 'imagenet_vid', 'ilsvrc_vid'],
     'coco': ['coco', 'mscoco', 'ms_coco'],
     'wider_face': ['WIDERFaceDataset', 'wider_face', 'WDIERFace'],
-    'cityscapes': ['cityscapes']
+    'cityscapes': ['cityscapes'],
+    'sim311': ['sim311']
 }
 
 

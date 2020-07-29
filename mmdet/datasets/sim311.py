@@ -1,15 +1,21 @@
 from mmdet.core import eval_map, eval_recalls
+import mmcv
+
+import os.path as osp
+import xml.etree.cElementTree as ET
+import numpy as np
+
 from .builder import DATASETS
 from .xml_style import XMLDataset
 
 @DATASETS.register_module
-class VHRDataset(XMLDataset):
+class Sim311Dataset(XMLDataset):
 
-    CLASSES = ('airplane', 'ship', 'storage tank', 'baseball diamond', 'tennis court',
-               'basketball court', 'ground track field', 'habor', 'bridge', 'vehicle')
+    CLASSES = ('ljjj', 'nzxj', 'zjgb', 'xcxj', 'qxz', 'uxh', 'qdp', 'fzc', 'jyz', 
+                'uxgj', 'plastic', 'jyz_ps', 'ld', 'fzc_sh', 'lszc', 'nest', 'fzc_xs')
 
     def __init__(self, **kwargs):
-        super(VHRDataset, self).__init__(**kwargs)
+        super(Sim311Dataset, self).__init__(**kwargs)
         
 
     def load_annotations(self, ann_file):
@@ -17,9 +23,7 @@ class VHRDataset(XMLDataset):
         img_ids = mmcv.list_from_file(ann_file)
         for img_id in img_ids:
             filename = 'JPEGImages/{}.jpg'.format(img_id)
-            # import pdb as ipdb
-            # ipdb.set_trace()
-            xml_path = osp.join(self.img_prefix, 'Annotations', '{}.xml'.format(img_id))
+            xml_path = osp.join(self.img_prefix, 'annotations', '{}.xml'.format(img_id))
             tree = ET.parse(xml_path)
 
             root = tree.getroot()
@@ -32,7 +36,7 @@ class VHRDataset(XMLDataset):
 
     def get_ann_info(self, idx):
         img_id = self.data_infos[idx]['id']
-        xml_path = osp.join(self.img_prefix, 'Annotations',
+        xml_path = osp.join(self.img_prefix, 'annotations',
                             '{}.xml'.format(img_id))
         tree = ET.parse(xml_path)
         root = tree.getroot()
@@ -100,7 +104,7 @@ class VHRDataset(XMLDataset):
         eval_results = {}
         if metric == 'mAP':
             assert isinstance(iou_thr, float)
-            ds_name = 'vhr'
+            ds_name = 'sim311'
             mean_ap, _ = eval_map(
                 results,
                 annotations,
