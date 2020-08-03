@@ -43,7 +43,7 @@ model = dict(
             in_channels=256,
             fc_out_channels=1024,
             roi_feat_size=7,
-            num_classes=17,
+            num_classes=15,
             bbox_coder=dict(
                 type='DeltaXYWHBBoxCoder',
                 target_means=[0., 0., 0., 0.],
@@ -155,7 +155,7 @@ data = dict(
         ann_file=data_root + 'ImageSets/Main/test.txt',
         img_prefix=data_root ,
         pipeline=test_pipeline))
-evaluation = dict(interval=1, metric='mAP')
+evaluation = dict(interval=5, metric='mAP')
 # optimizer
 optimizer = dict(type='SGD', lr=0.02, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
@@ -163,9 +163,9 @@ optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 lr_config = dict(
     policy='step',
     warmup='linear',
-    warmup_iters=500,
+    warmup_iters=50,
     warmup_ratio=1.0 / 3,
-    step=[20, 35])
+    step=[16, 20])
 checkpoint_config = dict(interval=5)
 # yapf:disable
 log_config = dict(
@@ -176,10 +176,10 @@ log_config = dict(
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 20
+total_epochs = 24
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/sim311/faster_rcnn_r50_fpn_1x'
+work_dir = './work_dirs/sim311/faster_rcnn_r50_fpn_1x_ban'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]

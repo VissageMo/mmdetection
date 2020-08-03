@@ -224,7 +224,7 @@ data = dict(
         ann_file=data_root + 'ImageSets/Main/test.txt',
         img_prefix=data_root ,
         pipeline=test_pipeline))
-evaluation = dict(interval=1, metric='mAP')
+evaluation = dict(interval=5, metric='mAP')
 # optimizer
 optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
@@ -234,8 +234,8 @@ lr_config = dict(
     warmup='linear',
     warmup_iters=100,
     warmup_ratio=1.0 / 3,
-    step=[10, 16])
-checkpoint_config = dict(interval=1)
+    step=[16, 24])
+checkpoint_config = dict(interval=5)
 # yapf:disable
 log_config = dict(
     interval=10,
@@ -245,10 +245,10 @@ log_config = dict(
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 20
+total_epochs = 5
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/sim311/cascade_rcnn_test'
-load_from = None
+work_dir = './work_dirs/sim311/cascade_rcnn_dist_continue'
+load_from = './work_dirs/sim311/cascade_rcnn_dist/latest.pth'
 resume_from = None
 workflow = [('train', 1)]

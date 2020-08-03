@@ -89,9 +89,13 @@ def cityscapes_classes():
     ]
 
 def sim311_classes():
+    # return [
+    #     'ljjj', 'nzxj', 'zjgb', 'xcxj', 'qxz', 'uxh', 'qdp', 'fzc', 'jyz', 
+    #     'uxgj', 'plastic', 'jyz_ps', 'ld', 'fzc_sh', 'lszc', 'nest', 'fzc_xs'
+    # ]
     return [
         'ljjj', 'nzxj', 'zjgb', 'xcxj', 'qxz', 'uxh', 'qdp', 'fzc', 'jyz', 
-        'uxgj', 'plastic', 'jyz_ps', 'ld', 'fzc_sh', 'lszc', 'nest', 'fzc_xs'
+        'plastic', 'jyz_ps', 'ld', 'fzc_sh', 'nest', 'fzc_xs'
     ]
 
 

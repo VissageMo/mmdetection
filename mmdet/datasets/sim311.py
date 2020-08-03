@@ -11,8 +11,11 @@ from .xml_style import XMLDataset
 @DATASETS.register_module
 class Sim311Dataset(XMLDataset):
 
+    # CLASSES = ('ljjj', 'nzxj', 'zjgb', 'xcxj', 'qxz', 'uxh', 'qdp', 'fzc', 'jyz', 
+    #             'uxgj', 'plastic', 'jyz_ps', 'ld', 'fzc_sh', 'lszc', 'nest', 'fzc_xs')
+    # ban lszc and uxgj
     CLASSES = ('ljjj', 'nzxj', 'zjgb', 'xcxj', 'qxz', 'uxh', 'qdp', 'fzc', 'jyz', 
-                'uxgj', 'plastic', 'jyz_ps', 'ld', 'fzc_sh', 'lszc', 'nest', 'fzc_xs')
+               'plastic', 'jyz_ps', 'ld', 'fzc_sh', 'nest', 'fzc_xs')
 
     def __init__(self, **kwargs):
         super(Sim311Dataset, self).__init__(**kwargs)
@@ -46,6 +49,9 @@ class Sim311Dataset(XMLDataset):
         labels_ignore = []
         for obj in root.findall('object'):
             name = obj.find('name').text
+            # ban lszc and uxgj
+            if name in ['lszc', 'uxgj']:
+                continue
             label = self.cat2label[name]
             difficult = int(obj.find('difficult').text)
             bnd_box = obj.find('bndbox')
