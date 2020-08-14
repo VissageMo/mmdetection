@@ -1,3 +1,6 @@
+# fp16 settings
+fp16 = dict(loss_scale=512.)
+# model settings
 model = dict(
     type='FasterRCNN',
     pretrained='torchvision://resnet50',
@@ -138,8 +141,8 @@ test_pipeline = [
         ])
 ]
 data = dict(
-    imgs_per_gpu=12,
-    workers_per_gpu=4,
+    samples_per_gpu=24,
+    workers_per_gpu=8,
     train=dict(
         type=dataset_type,
         ann_file=data_root + 'ImageSets/Main/train.txt',
@@ -179,7 +182,7 @@ log_config = dict(
 total_epochs = 24
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/sim311/faster_rcnn_r50_fpn_1x_ban'
+work_dir = './work_dirs/sim311/faster_rcnn_r50_fpn_1x_fp16'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
